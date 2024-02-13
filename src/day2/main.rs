@@ -154,6 +154,85 @@ fn min<T: LessThan>(a: T, b: T) -> T {
         b
     }
 }
+use std::collections::HashMap;
+use std::hash::Hash;
+
+/// Counter counts the number of times each value of type T has been seen.
+struct Counter<T: Eq + Hash> {
+    values: HashMap<T, u64>,
+}
+
+impl<T: Eq + Hash> Counter<T> {
+    /// Create a new Counter.
+    fn new() -> Self {
+        Counter {
+            values: HashMap::new(),
+        }
+    }
+
+    /// Count an occurrence of the given value.
+    fn count(&mut self, value: T) {
+        if self.values.contains_key(&value) {
+            *self.values.get_mut(&value).unwrap() += 1;
+        } else {
+            self.values.insert(value, 1);
+        }
+    }
+
+    /// Return the number of times the given value has been seen.
+    fn times_seen(&self, value: T) -> u64 {
+        self.values.get(&value).copied().unwrap_or_default()
+    }
+}
+use std::io::Read;
+type IoResult<T> = std::io::Result<T>;
+
+struct RotDecoder<R: Read> {
+    input: R,
+    rot: u8,
+}
+
+// Implement the `Read` trait for `RotDecoder`.
+impl <R: Read> Read for RotDecoder<R> {
+    fn read(&mut self, buf: &mut [u8]) -> IoResult<usize> {
+        let n = self.input.read(buf)?;
+        for byte in &mut buf[..n] {
+            if byte.is_ascii_alphabetic() {
+                let base = if byte.is_ascii_lowercase() { b'a' } else { b'A' };
+                *byte = base + (*byte - base + self.rot) % 26;
+            }
+        }
+        Ok(n)
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn joke() {
+        let mut rot =
+            RotDecoder { input: "Gb trg gb gur bgure fvqr!".as_bytes(), rot: 13 };
+        let mut result = String::new();
+        rot.read_to_string(&mut result).unwrap();
+        assert_eq!(&result, "To get to the other side!");
+    }
+
+    #[test]
+    fn binary() {
+        let input: Vec<u8> = (0..=255u8).collect();
+        let mut rot = RotDecoder::<&[u8]> { input: input.as_ref(), rot: 13 };
+        let mut buf = [0u8; 256];
+        assert_eq!(rot.read(&mut buf).unwrap(), 256);
+        for i in 0..=255 {
+            if input[i] != buf[i] {
+                assert!(input[i].is_ascii_alphabetic());
+                assert!(buf[i].is_ascii_alphabetic());
+            }
+        }
+    }
+}
 
 fn main() {
     println!("{}", eval(Expression::Op { op: (Operation::Add), left: (Box::new(Expression::Value(11))), right: (Box::new(Expression::Value(11))) }).unwrap());
@@ -174,4 +253,30 @@ fn main() {
     debug_assert_eq!(min(cit1, cit2), cit2);
     debug_assert_eq!(min(cit2, cit3), cit2);
     debug_assert_eq!(min(cit1, cit3), cit3);
+
+    // HashMap
+    let mut ctr = Counter::new();
+    ctr.count(13);
+    ctr.count(14);
+    ctr.count(16);
+    ctr.count(14);
+    ctr.count(14);
+    ctr.count(11);
+
+    for i in 10..20 {
+        println!("saw {} values equal to {}", ctr.times_seen(i), i);
+    }
+
+    let mut strctr = Counter::new();
+    strctr.count("apple");
+    strctr.count("orange");
+    strctr.count("apple");
+    println!("got {} apples", strctr.times_seen("apple"));
+
+    // ROT13
+    let mut rot =
+        RotDecoder { input: "Gb trg gb gur bgure fvqr!".as_bytes(), rot: 13 };
+    let mut result = String::new();
+    rot.read_to_string(&mut result).unwrap();
+    println!("{}", result);
 }
